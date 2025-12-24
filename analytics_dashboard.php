@@ -205,8 +205,13 @@ try {
             font-weight: 700; color: var(--accent-cyan); border: none;
             text-transform: uppercase; letter-spacing: 0.5px; font-size: 12px;
             cursor: pointer; transition: all 0.2s; position: sticky; top: 0; z-index: 10;
+            user-select: none;
         }
         thead th:hover { color: var(--accent-pink); }
+        thead th[data-sort-dir] { 
+            color: var(--accent-cyan) !important; 
+            font-weight: 900; /* ADD THIS - makes active column bolder */
+        }
         tbody tr {
             background: rgba(15, 22, 41, 0.6); transition: all 0.3s;
             border-left: 2px solid transparent;
@@ -540,44 +545,65 @@ try {
         });
 
         // Table sort
-        function sortTable(n) {
+        function sortTable(columnIndex) {
             const table = document.getElementById("sessionsTable");
             if (!table) return;
-            let switching = true, dir = "asc", switchcount = 0;
-            while (switching) {
-                switching = false;
-                const rows = table.rows;
-                for (let i = 1; i < (rows.length - 1); i++) {
-                    let shouldSwitch = false;
-                    const x = rows[i].getElementsByTagName("TD")[n];
-                    const y = rows[i + 1].getElementsByTagName("TD")[n];
-                    let xContent = x.innerText.toLowerCase();
-                    let yContent = y.innerText.toLowerCase();
-                    if (n === 2) {
-                        xContent = parseFloat(xContent.replace(' km', '').replace(',', ''));
-                        yContent = parseFloat(yContent.replace(' km', '').replace(',', ''));
-                    } else if (n === 0) {
-                        xContent = new Date(xContent).getTime();
-                        yContent = new Date(yContent).getTime();
-                    }
-                    if (dir == "asc") {
-                        if (xContent > yContent) { shouldSwitch = true; break; }
-                    } else if (dir == "desc") {
-                        if (xContent < yContent) { shouldSwitch = true; break; }
-                    }
+
+            const tbody = table.tBodies[0];
+            const rows = Array.from(tbody.rows);
+
+            // Determine current sort direction
+            const header = table.querySelectorAll('th')[columnIndex];
+            const currentDir = header.getAttribute('data-sort-dir') || 'asc';
+            const newDir = currentDir === 'asc' ? 'desc' : 'asc';
+
+            // Clear all sort indicators from ALL headers
+            table.querySelectorAll('th').forEach(th => {
+                th.removeAttribute('data-sort-dir');
+                th.style.color = '';
+                // Reset arrow to neutral
+                const arrowMatch = th.innerHTML.match(/^(.*?)\s*[↑↓↕]?\s*$/);
+                if (arrowMatch) {
+                    th.innerHTML = arrowMatch[1].trim() + ' ↕';
                 }
-                if (shouldSwitch) {
-                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                    switching = true;
-                    switchcount++;
-                } else {
-                    if (switchcount == 0 && dir == "asc") {
-                        dir = "desc";
-                        switching = true;
-                    }
+            });
+
+            // Set new sort direction and update arrow
+            header.setAttribute('data-sort-dir', newDir);
+            header.style.color = '#00F5FF'; // Highlight active column
+
+            // Update the arrow based on direction
+            const headerText = header.innerHTML.replace(/\s*[↑↓↕]\s*$/, '').trim();
+            header.innerHTML = headerText + (newDir === 'asc' ? ' ↑' : ' ↓');
+
+            // Sort rows
+            rows.sort((a, b) => {
+                const aCell = a.cells[columnIndex].innerText.trim();
+                const bCell = b.cells[columnIndex].innerText.trim();
+                
+                let aValue, bValue;
+                
+                // Handle different column types
+                if (columnIndex === 0) { // Date
+                    aValue = new Date(aCell).getTime();
+                    bValue = new Date(bCell).getTime();
+                } else if (columnIndex === 2) { // Distance (kilometers)
+                    aValue = parseFloat(aCell.replace(' km', '').replace(',', ''));
+                    bValue = parseFloat(bCell.replace(' km', '').replace(',', ''));
+                } else { // Text columns
+                    aValue = aCell.toLowerCase();
+                    bValue = bCell.toLowerCase();
                 }
-            }
+                
+                if (aValue < bValue) return newDir === 'asc' ? -1 : 1;
+                if (aValue > bValue) return newDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Reorder DOM
+            rows.forEach(row => tbody.appendChild(row));
         }
+
     </script>
 </body>
 </html>
